@@ -1,0 +1,42 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Fasten Classic",
+  "version": "0.1.0",
+  "identifier": "com.fastenclassic.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Fasten Classic — Household Finances",
+        "width": 1280,
+        "height": 840,
+        "minWidth": 960,
+        "minHeight": 640,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "shortDescription": "Your household finances, on your computer. No subscription.",
+    "longDescription": "Fasten Classic is an open-source, locally stored household finance desktop app for importing bank statements (CSV, OFX, QIF), setting monthly budgets, tracking bills, and viewing net worth without a subscription.",
+    "category": "Finance"
+  }
+}

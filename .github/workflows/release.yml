@@ -1,0 +1,99 @@
+name: CI & Cross-Platform Desktop Release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    name: Verify Frontend & Rust Ledger Tests
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux WebKitGTK build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build frontend & run Vitest suite
+        run: |
+          npm run build
+          npm test
+
+      - name: Run Rust ledger, parser, and backup tests
+        working-directory: src-tauri
+        run: cargo test
+
+  release-desktop:
+    name: Package ${{ matrix.label }} Installer
+    needs: verify
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            label: Windows (x64 NSIS & MSI)
+            args: ''
+          - platform: macos-latest
+            label: macOS (Universal DMG & App)
+            args: '--target universal-apple-darwin'
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build & bundle Tauri desktop installers
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Fasten Classic ${{ github.ref_name }}'
+          releaseBody: |
+            **Fasten Classic** — Your household finances, on your computer. No subscription.
+
+            ### Downloads
+            - **Windows**: Download the `-setup.exe` (recommended) or `.msi` installer.
+            - **macOS (Apple Silicon & Intel)**: Download the `.dmg` disk image and drag **Fasten Classic** to Applications.
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}

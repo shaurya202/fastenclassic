@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Frontend build output
+dist/
+dist-ssr/
+*.local
+
+# Rust / Tauri build artifacts
+src-tauri/target/
+src-tauri/gen/schemas/
+
+# Test & coverage artifacts
+coverage/
+playwright-report/
+test-results/
+.playwright-mcp/
+
+# OS & editor files
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.log
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
