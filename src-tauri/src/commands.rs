@@ -179,6 +179,21 @@ pub fn record_bill_payment(
     db.record_bill_payment(&bill_id, &paid_date, account_id_override)
 }
 
+fn validate_backup_file_path(file_path: &str) -> Result<PathBuf, String> {
+    let trimmed = file_path.trim();
+    if trimmed.is_empty() {
+        return Err("File path cannot be empty.".to_string());
+    }
+    if trimmed.contains('\0') {
+        return Err("Invalid characters detected in file path.".to_string());
+    }
+    let lower = trimmed.to_lowercase();
+    if !lower.ends_with(".json") && !lower.ends_with(".fastenbackup.json") {
+        return Err("Backup file must have a .json or .fastenbackup.json extension.".to_string());
+    }
+    Ok(PathBuf::from(trimmed))
+}
+
 #[tauri::command]
 pub fn export_backup_json(db: State<'_, Database>) -> Result<String, String> {
     db.export_backup_json()
@@ -186,9 +201,10 @@ pub fn export_backup_json(db: State<'_, Database>) -> Result<String, String> {
 
 #[tauri::command]
 pub fn export_backup_to_file(db: State<'_, Database>, file_path: String) -> Result<(), String> {
+    let path = validate_backup_file_path(&file_path)?;
     let json = db.export_backup_json()?;
-    std::fs::write(PathBuf::from(&file_path), json.as_bytes())
-        .map_err(|e| format!("Could not write backup file to '{}': {}", file_path, e))
+    std::fs::write(&path, json.as_bytes())
+        .map_err(|e| format!("Could not write backup file to '{}': {}", path.display(), e))
 }
 
 #[tauri::command]
@@ -198,8 +214,9 @@ pub fn restore_backup_json(db: State<'_, Database>, raw_json: String) -> Result<
 
 #[tauri::command]
 pub fn restore_backup_from_file(db: State<'_, Database>, file_path: String) -> Result<(), String> {
-    let raw = std::fs::read_to_string(PathBuf::from(&file_path))
-        .map_err(|e| format!("Could not read backup file '{}': {}", file_path, e))?;
+    let path = validate_backup_file_path(&file_path)?;
+    let raw = std::fs::read_to_string(&path)
+        .map_err(|e| format!("Could not read backup file '{}': {}", path.display(), e))?;
     db.restore_backup_json(&raw)
 }
 

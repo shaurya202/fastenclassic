@@ -1,5 +1,19 @@
 use crate::parsers::{parse_amount_to_cents, parse_flexible_date, ParsedRow, ParsedStatement};
 
+fn find_ascii_case_insensitive(haystack: &str, needle: &str) -> Option<usize> {
+    if needle.is_empty() {
+        return Some(0);
+    }
+    let needle_bytes = needle.as_bytes();
+    let hay_bytes = haystack.as_bytes();
+    if needle_bytes.len() > hay_bytes.len() {
+        return None;
+    }
+    hay_bytes
+        .windows(needle_bytes.len())
+        .position(|window| window.eq_ignore_ascii_case(needle_bytes))
+}
+
 fn unescape_entities(input: &str) -> String {
     input
         .replace("&amp;", "&")
@@ -15,14 +29,12 @@ fn unescape_entities(input: &str) -> String {
 /// Extracts value of an OFX SGML or XML tag within a block (`<TAG>value` up to next `<` or newline).
 fn extract_ofx_tag(block: &str, tag: &str) -> Option<String> {
     let open = format!("<{}>", tag);
-    let upper = block.to_uppercase();
-    let start_idx = upper.find(&open)? + open.len();
+    let start_idx = find_ascii_case_insensitive(block, &open)? + open.len();
     let rest = &block[start_idx..];
 
     // Value ends at closing tag `</TAG>` or next tag `<` or line break in SGML OFX
-    let close_upper = format!("</{}>", tag);
-    let rest_upper = rest.to_uppercase();
-    let end_idx = if let Some(ci) = rest_upper.find(&close_upper) {
+    let close = format!("</{}>", tag);
+    let end_idx = if let Some(ci) = find_ascii_case_insensitive(rest, &close) {
         ci
     } else {
         rest.find(['<', '\r', '\n']).unwrap_or(rest.len())
@@ -47,21 +59,21 @@ fn parse_ofx_date(raw: &str) -> Result<String, String> {
 }
 
 pub fn parse_ofx(content: &str) -> Result<ParsedStatement, String> {
-    let upper = content.to_uppercase();
-    if !upper.contains("<STMTTRN>") && !upper.contains("<OFX") && !upper.contains("OFXHEADER") {
+    if find_ascii_case_insensitive(content, "<STMTTRN>").is_none()
+        && find_ascii_case_insensitive(content, "<OFX").is_none()
+        && find_ascii_case_insensitive(content, "OFXHEADER").is_none()
+    {
         return Err(
             "This file does not appear to be a valid OFX or QFX bank statement (missing <OFX> / <STMTTRN> records)."
                 .to_string(),
         );
     }
 
-    let statement_balance_cents = upper.find("<LEDGERBAL>").and_then(|idx| {
+    let statement_balance_cents = find_ascii_case_insensitive(content, "<LEDGERBAL>").and_then(|idx| {
         let sub = &content[idx..];
-        let end = sub
-            .to_uppercase()
-            .find("</LEDGERBAL>")
-            .or_else(|| sub.to_uppercase().find("<AVAILBAL>"))
-            .unwrap_or(sub.len().min(256));
+        let end = find_ascii_case_insensitive(sub, "</LEDGERBAL>")
+            .or_else(|| find_ascii_case_insensitive(sub, "<AVAILBAL>"))
+            .unwrap_or_else(|| sub.len().min(256));
         extract_ofx_tag(&sub[..end], "BALAMT").and_then(|v| parse_amount_to_cents(&v).ok())
     });
 
@@ -69,10 +81,10 @@ pub fn parse_ofx(content: &str) -> Result<ParsedStatement, String> {
     let mut warnings = Vec::new();
     let mut search_pos = 0usize;
 
-    while let Some(rel_start) = upper[search_pos..].find("<STMTTRN>") {
+    while let Some(rel_start) = find_ascii_case_insensitive(&content[search_pos..], "<STMTTRN>") {
         let block_start = search_pos + rel_start + "<STMTTRN>".len();
-        let next_trn = upper[block_start..].find("<STMTTRN>");
-        let close_trn = upper[block_start..].find("</STMTTRN>");
+        let next_trn = find_ascii_case_insensitive(&content[block_start..], "<STMTTRN>");
+        let close_trn = find_ascii_case_insensitive(&content[block_start..], "</STMTTRN>");
         let end_rel = match (close_trn, next_trn) {
             (Some(c), Some(n)) => c.min(n),
             (Some(c), None) => c,

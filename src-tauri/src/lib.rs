@@ -234,6 +234,56 @@ VERSION:102
     }
 
     #[test]
+    fn ofx_import_handles_multibyte_unicode_and_special_characters() {
+        let (db, acc) = create_test_db_with_checking();
+        let ofx_unicode = "\
+OFXHEADER:100
+DATA:OFXSGML
+VERSION:102
+SECURITY:NONE
+ENCODING:UTF-8
+CHARSET:NONE
+COMPRESSION:NONE
+OLDFILEUID:NONE
+NEWFILEUID:NONE
+
+<OFX>
+<BANKMSGSRSV1>
+<STMTTRNRS>
+<STMTRS>
+<BANKTRANLIST>
+<STMTTRN>
+<TRNTYPE>DEBIT
+<DTPOSTED>20261016
+<TRNAMT>-32.50
+<FITID>202610169999
+<NAME>Bäckerei &amp; Café Münsterstraße
+<MEMO>Straße und Grüner Markt Großkauf
+</STMTTRN>
+</BANKTRANLIST>
+</STMTRS>
+</STMTTRNRS>
+</BANKMSGSRSV1>
+</OFX>";
+
+        let preview = db
+            .preview_statement_import(&ImportPreviewRequest {
+                account_id: acc.id.clone(),
+                file_name: "unicode_test.ofx".to_string(),
+                content: ofx_unicode.to_string(),
+                format_override: None,
+                csv_mapping: None,
+            })
+            .expect("preview unicode ofx");
+
+        assert_eq!(preview.detected_format, "ofx");
+        assert_eq!(preview.total_rows, 1);
+        assert_eq!(preview.rows[0].payee, "Bäckerei & Café Münsterstraße");
+        assert_eq!(preview.rows[0].memo, "Straße und Grüner Markt Großkauf");
+        assert_eq!(preview.rows[0].amount_cents, -3_250);
+    }
+
+    #[test]
     fn qif_import_supports_quicken_apostrophe_dates_and_category_hints() {
         let (db, acc) = create_test_db_with_checking();
         let qif_content = "\

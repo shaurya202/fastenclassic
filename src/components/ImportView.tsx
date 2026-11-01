@@ -77,7 +77,22 @@ export function ImportView({
     }
   }
 
+  const MAX_STATEMENT_BYTES = 15 * 1024 * 1024; // 15 MB
+  const ALLOWED_EXTENSIONS = ['.csv', '.tsv', '.txt', '.ofx', '.qfx', '.qif'];
+
   async function handleFileSelected(file: File) {
+    setError(null);
+    if (file.size > MAX_STATEMENT_BYTES) {
+      setError('Statement file exceeds maximum allowed size (15 MB).');
+      return;
+    }
+    const lowerName = file.name.toLowerCase();
+    const hasValidExt = ALLOWED_EXTENSIONS.some((ext) => lowerName.endsWith(ext));
+    if (!hasValidExt) {
+      setError('Please select a supported bank statement file (.csv, .tsv, .ofx, .qfx, or .qif).');
+      return;
+    }
+
     const text = await file.text();
     setFileName(file.name);
     setRawContent(text);

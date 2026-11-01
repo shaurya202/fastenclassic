@@ -90,8 +90,20 @@ export function BackupView({ selectedMonth, onDataChanged, onNotify }: BackupVie
     }
   }
 
+  const MAX_BACKUP_BYTES = 50 * 1024 * 1024; // 50 MB
+
   async function handleRestoreFileInput(file: File) {
     setError(null);
+    if (file.size > MAX_BACKUP_BYTES) {
+      setError('Backup file exceeds maximum allowed size (50 MB).');
+      return;
+    }
+    const lowerName = file.name.toLowerCase();
+    if (!lowerName.endsWith('.json') && !lowerName.endsWith('.fastenbackup.json')) {
+      setError('Please select a valid Fasten Classic backup file (.json or .fastenbackup.json).');
+      return;
+    }
+
     setBusy(true);
     try {
       const text = await file.text();
